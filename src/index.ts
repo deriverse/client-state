@@ -36,7 +36,8 @@ export interface Spot {
     askOrders: Map<number, Order>;
     avgPx: number;
     realizedPnl: number;
-    position: number;
+    assetTokenPosition: number;
+    crncyTokenPosition: number;
     assetTokenPending: number;
     crncyTokenPending: number;
     fees: number;
@@ -399,8 +400,8 @@ export async function createClientState(
         args.onPerpFillOrder??onFillOrderDummy
     );
     const clientData = await args.engine.getClientData();
-    for (const token of clientData.tokens) {
-        clientOpsState.tokens.set(token[1].tokenId, token[1].amount);  
+    for (const token of clientData.tokens.values()) {
+        clientOpsState.tokens.set(token.tokenId, token.amount);  
     }
     for (const instrId of args.instrIds) {
         let instr = args.engine.instruments.get(instrId);
@@ -424,7 +425,8 @@ export async function createClientState(
                 spot: {
                     bidOrders: new Map(),
                     askOrders: new Map(),
-                    position: 0,
+                    assetTokenPosition: clientData.tokens.get(assetTokenId)!.amount,
+                    crncyTokenPosition: clientData.tokens.get(crncyTokenId)!.amount,
                     assetTokenPending: 0,
                     crncyTokenPending: 0,
                     avgPx: 0,
@@ -542,28 +544,28 @@ export class ClientState {
         report: SpotFillOrderReportModel,
     ) {
         const qty = tradeDirection == TradeDirection.buy ? report.qty : -report.qty;
-        //const crncy = tradeDirection == TradeDirection.buy ? -report.crncy : report.crncy;
-        if (instrument.spot.position * qty < 0) {
+        const crncy = tradeDirection == TradeDirection.buy ? -report.crncy : report.crncy;
+        if (instrument.spot.assetTokenPosition * qty < 0) {
             const price = report.crncy / report.qty;
-            if (Math.abs(instrument.spot.position) >= Math.abs(qty)) {
+            if (Math.abs(instrument.spot.assetTokenPosition) >= Math.abs(qty)) {
                 instrument.spot.realizedPnl += (instrument.spot.avgPx - price) * qty;
-                instrument.spot.position += qty;
             }
             else {
-                instrument.spot.realizedPnl -= (instrument.spot.avgPx - price) * instrument.spot.position;
-                instrument.spot.position += qty;
+                instrument.spot.realizedPnl -= (instrument.spot.avgPx - price) *
+                    instrument.spot.assetTokenPosition;
                 instrument.spot.avgPx = price;
             }
         }
         else {
-            const newPosition = instrument.spot.position + qty;
-            instrument.spot.avgPx = (Math.abs(instrument.spot.position) * instrument.spot.avgPx + report.crncy) / Math.abs(newPosition);
-            instrument.spot.position = newPosition;
+            const newPosition = instrument.spot.assetTokenPosition + qty;
+            instrument.spot.avgPx = (Math.abs(instrument.spot.assetTokenPosition) *
+                instrument.spot.avgPx + report.crncy) / Math.abs(newPosition);
         }
         if (role == Role.maker) {
             const rebates = report.rebates ?? 0;
             instrument.spot.realizedPnl += rebates;
             instrument.spot.rebates += rebates;
+            instrument.spot.crncyTokenPosition += rebates;
 
         }
         if (tradeDirection == TradeDirection.buy) {
@@ -590,8 +592,11 @@ export class ClientState {
                 this.tokens.set(instrument.info.assetTokenId, token - report.qty);
             }
         }
+        instrument.spot.assetTokenPosition += qty;
+        instrument.spot.crncyTokenPosition += crncy;
         this.onSpotFillOrder(instrument.info.instrId, role, tradeDirection, takerOrderId, report);
     }
+
     private perpFill(
         instrument: ClientInstrument,
         role: Role,
