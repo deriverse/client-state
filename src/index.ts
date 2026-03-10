@@ -411,6 +411,9 @@ export async function createClientState(
             const crncyTokenId = instr!.header.crncyTokenId;
             await args.engine.updateInstrData({ instrId: instrId });
             instr = args.engine.instruments.get(instrId);
+            const assetToken = clientData.tokens.get(assetTokenId);
+            const crncyToken = clientData.tokens.get(crncyTokenId);
+            const initAassetTokens= assetToken == null?0:assetToken.amount
             clientOpsState.instruments.set(instrId, {
                 info: {
                     instrId: instrId,
@@ -426,9 +429,9 @@ export async function createClientState(
                 spot: {
                     bidOrders: new Map(),
                     askOrders: new Map(),
-                    initQty: clientData.tokens.get(assetTokenId)!.amount,
-                    assetTokenPosition: clientData.tokens.get(assetTokenId)!.amount,
-                    crncyTokenPosition: clientData.tokens.get(crncyTokenId)!.amount,
+                    initQty: initAassetTokens,
+                    assetTokenPosition: initAassetTokens,
+                    crncyTokenPosition: crncyToken == null?0:crncyToken.amount,
                     assetTokenPending: 0,
                     crncyTokenPending: 0,
                     avgPx: 0,
@@ -455,12 +458,12 @@ export async function createClientState(
                     change: true
                 },
             });
-            if (clientData.spot.size > 0) {
+            if (clientData.spot.get(instrId) != null) {
                 return null;
             }
-            for (const perp of clientData.perp) {
-                if (perp[1].instrId == instrId) {
-                    const ordersInfo = await args.engine.getClientPerpOrdersInfo(perp[1]);
+            for (const perp of clientData.perp.values()) {
+                if (perp.instrId == instrId) {
+                    const ordersInfo = await args.engine.getClientPerpOrdersInfo(perp);
                     let clientInstrument = clientOpsState.instruments.get(instrId)!;
                     clientInstrument.perp.leverage = ordersInfo.mask & 0xFF;
                     clientInstrument.perp.futures = ordersInfo.perps + ordersInfo.inOrdersPerps;
