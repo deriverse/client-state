@@ -7,7 +7,7 @@ import {
     SpotFillOrderReportModel, SpotMassCancelReportModel, SpotNewOrderReportModel,
     SpotOrderCancelReportModel, SpotOrderRevokeReportModel, SpotPlaceMassCancelReportModel,
     SpotPlaceOrderReportModel, WithdrawReportModel
-} from "../../kit";
+} from "@deriverse/kit";
 import { Address, AddressesByLookupTableAddress, fetchAddressesForLookupTables, GetMultipleAccountsApi, Rpc, Signature, TransactionError } from "@solana/kit";
 
 const IS_LONG_MARGIN_CALL = 0x40;
