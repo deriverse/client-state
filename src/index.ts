@@ -10,8 +10,8 @@ import {
 } from "../../kit";
 import { Address, AddressesByLookupTableAddress, fetchAddressesForLookupTables, GetMultipleAccountsApi, Rpc, Signature, TransactionError } from "@solana/kit";
 
-const IS_LONG_MARGIN_CALL = 0x10;
-const IS_SHORT_MARGIN_CALL = 0x20;
+const IS_LONG_MARGIN_CALL = 0x40;
+const IS_SHORT_MARGIN_CALL = 0x80;
 
 export enum OrderSide {
     bid = 0,
