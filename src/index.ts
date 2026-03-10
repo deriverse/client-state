@@ -7,7 +7,7 @@ import {
     SpotFillOrderReportModel, SpotMassCancelReportModel, SpotNewOrderReportModel,
     SpotOrderCancelReportModel, SpotOrderRevokeReportModel, SpotPlaceMassCancelReportModel,
     SpotPlaceOrderReportModel, WithdrawReportModel
-} from "@deriverse/kit";
+} from "../../kit";
 import { Address, AddressesByLookupTableAddress, fetchAddressesForLookupTables, GetMultipleAccountsApi, Rpc, Signature, TransactionError } from "@solana/kit";
 
 const IS_LONG_MARGIN_CALL = 0x10;
@@ -36,6 +36,7 @@ export interface Spot {
     askOrders: Map<number, Order>;
     avgPx: number;
     realizedPnl: number;
+    initQty: number;
     assetTokenPosition: number;
     crncyTokenPosition: number;
     assetTokenPending: number;
@@ -152,7 +153,7 @@ export function perpCollateralValue(
         px =
             Math.min(instrument.header.perpUnderlyingPx,
                 Math.min(
-                    instrument.header.perpBestBid, instrument.header.emaPx
+                    instrument.header.perpBestBid, instrument.header.shortEmaPx
                 )
             );
     }
@@ -160,7 +161,7 @@ export function perpCollateralValue(
         px =
             Math.max(instrument.header.perpUnderlyingPx,
                 Math.max(
-                    instrument.header.perpBestAsk, instrument.header.emaPx
+                    instrument.header.perpBestAsk, instrument.header.shortEmaPx
                 )
             );
     }
@@ -191,7 +192,7 @@ export function perpFundsAvailableforWithdraw(
                 Math.max(instrument.header.perpLongSpotPriceForWithdrowal,
                     Math.max(instrument.header.perpUnderlyingPx,
                         Math.max(
-                            instrument.header.perpBestAsk, instrument.header.emaPx
+                            instrument.header.perpBestAsk, instrument.header.shortEmaPx
                         )
                     )
                 );
@@ -201,7 +202,7 @@ export function perpFundsAvailableforWithdraw(
                 Math.min(instrument.header.perpShortSpotPriceForWithdrowal,
                     Math.min(instrument.header.perpUnderlyingPx,
                         Math.min(
-                            instrument.header.perpBestBid, instrument.header.emaPx
+                            instrument.header.perpBestBid, instrument.header.shortEmaPx
                         )
                     )
                 );
@@ -210,7 +211,7 @@ export function perpFundsAvailableforWithdraw(
             px =
                 Math.max(instrument.header.perpUnderlyingPx,
                     Math.max(
-                        instrument.header.perpBestAsk, instrument.header.emaPx
+                        instrument.header.perpBestAsk, instrument.header.shortEmaPx
                     )
                 );
         }
@@ -218,7 +219,7 @@ export function perpFundsAvailableforWithdraw(
             px =
                 Math.min(instrument.header.perpUnderlyingPx,
                     Math.min(
-                        instrument.header.perpBestBid, instrument.header.emaPx
+                        instrument.header.perpBestBid, instrument.header.shortEmaPx
                     )
                 );
         }
@@ -239,7 +240,7 @@ function perpExposureForShort(
     return clientInstrument.perp.futures *
         Math.max(instrument.header.perpUnderlyingPx,
             Math.max(
-                instrument.header.perpBestAsk, instrument.header.emaPx
+                instrument.header.perpBestAsk, instrument.header.shortEmaPx
             )
         );
 }
@@ -425,6 +426,7 @@ export async function createClientState(
                 spot: {
                     bidOrders: new Map(),
                     askOrders: new Map(),
+                    initQty: clientData.tokens.get(assetTokenId)!.amount,
                     assetTokenPosition: clientData.tokens.get(assetTokenId)!.amount,
                     crncyTokenPosition: clientData.tokens.get(crncyTokenId)!.amount,
                     assetTokenPending: 0,
@@ -545,20 +547,21 @@ export class ClientState {
     ) {
         const qty = tradeDirection == TradeDirection.buy ? report.qty : -report.qty;
         const crncy = tradeDirection == TradeDirection.buy ? -report.crncy : report.crncy;
-        if (instrument.spot.assetTokenPosition * qty < 0) {
+        const oldPosition = instrument.spot.assetTokenPosition - instrument.spot.initQty;
+        if (oldPosition * qty < 0) {
             const price = report.crncy / report.qty;
-            if (Math.abs(instrument.spot.assetTokenPosition) >= Math.abs(qty)) {
+            if (Math.abs(oldPosition) >= Math.abs(qty)) {
                 instrument.spot.realizedPnl += (instrument.spot.avgPx - price) * qty;
             }
             else {
                 instrument.spot.realizedPnl -= (instrument.spot.avgPx - price) *
-                    instrument.spot.assetTokenPosition;
+                    oldPosition;
                 instrument.spot.avgPx = price;
             }
         }
         else {
-            const newPosition = instrument.spot.assetTokenPosition + qty;
-            instrument.spot.avgPx = (Math.abs(instrument.spot.assetTokenPosition) *
+            const newPosition = oldPosition + qty;
+            instrument.spot.avgPx = (Math.abs(oldPosition) *
                 instrument.spot.avgPx + report.crncy) / Math.abs(newPosition);
         }
         if (role == Role.maker) {
