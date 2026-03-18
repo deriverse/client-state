@@ -1,10 +1,17 @@
 {
   "name": "@deriverse/client-state",
   "version": "1.0.0",
-  "description": "",
+  "description": "Client state management utilities for Deriverse SDK on Solana.",
   "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "files": [
     "dist",
     "README.md",
@@ -14,25 +21,33 @@
     "build": "tsc",
     "prepack": "npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deriverse/client-state.git"
+  },
+  "bugs": {
+    "url": "https://github.com/deriverse/client-state/issues"
+  },
+  "homepage": "https://github.com/deriverse/client-state#readme",
+  "keywords": [
+    "deriverse",
+    "solana",
+    "sdk",
+    "trading"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "author": "Deriverse",
   "license": "Apache-2.0",
-  "devDependencies": {
-    "@eslint/js": "^9.0.0",
-    "@types/node": "^25.2.1",
-    "@vitest/coverage-v8": "^4.0.18",
-    "eslint": "^9.0.0",
-    "jiti": "^2.6.1",
-    "prettier": "^3.8.1",
-    "typescript": "^5.4.3",
-    "typescript-eslint": "^8.54.0",
-    "vitest": "^4.0.18"
-  },
   "dependencies": {
-    "@solana-program/system": "^0.7.0",
     "@deriverse/kit": "1.0.49",
-    "@solana/kit": "2.1.0",
-    "base64-arraybuffer": "^1.0.2",
-    "bs58": "^6.0.0",
-    "zod": "^4.3.6"
+    "@solana/kit": "2.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

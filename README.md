@@ -1,72 +1,50 @@
-# Deriverse SDK
+# @deriverse/client-state
 
-TypeScript SDK for interacting with the Deriverse decentralized exchange (DEX) on Solana. This SDK provides a comprehensive interface for trading spot and perpetual futures, managing liquidity, and interacting with the Deriverse smart contract.
+TypeScript client-state utilities for Deriverse trading workflows on Solana.
 
-Based on [`@solana/kit`](https://www.npmjs.com/package/@solana/kit)
-
-## Features
-
-- **Spot Trading**
-  - Place and cancel spot orders
-  - Manage spot liquidity positions
-  - Query spot order book and market data
-  - Handle spot deposits and withdrawals
-
-- **Perpetual Futures Trading**
-  - Trade perpetual futures with leverage
-  - Manage perpetual positions
-  - Place and cancel perpetual orders
-  - Handle perpetual deposits and withdrawals
-  - Adjust leverage on positions
-
-- **Account Management**
-  - Create and manage trading accounts
-  - Handle token deposits and withdrawals
-  - Manage associated token accounts
-  - Query account balances and positions
-
-- **Market Data**
-  - Access order book data
-  - Query market depth
-  - Get price steps and market information
-  - Access historical trade data
+This package is designed to work alongside [`@deriverse/kit`](https://www.npmjs.com/package/@deriverse/kit) and helps maintain in-memory client instrument state while processing Deriverse engine/log events.
 
 ## Installation
 
 ```bash
-npm install @deriverse/kit
+npm install @deriverse/client-state
 ```
 
-## Examples
+## What This Package Provides
 
-We prepared a comprehensive example that is available here: https://github.com/deriverse/kit-example
+- `createClientState(...)` for bootstrapping client instrument state from engine data.
+- State models for spot/perp balances and in-order exposure.
+- Utility functions for collateral, leverage, liquidation, and health calculations.
+- `ClientState` class for applying and tracking account/instrument changes.
 
-## Development
+## Minimal Usage
 
-### Prerequisites
+```ts
+import { createClientState } from "@deriverse/client-state";
 
-- Node.js (v20 or higher)
-- npm or yarn
-- TypeScript (v5.4.3 or higher)
+const state = await createClientState({
+  engine,
+  rpc,
+  instrIds: [1, 2]
+});
 
-### Setup
-
-1. Clone the repository:
-```bash
-git clone https://github.com/deriverse/kit.git
-cd kit
+if (!state) {
+  throw new Error("Unable to initialize client state");
+}
 ```
 
-2. Install dependencies:
-```bash
-npm install
-```
+## Build
 
-3. Build the project:
 ```bash
 npm run build
 ```
 
+## Publish
+
+```bash
+npm publish
+```
+
 ## License
 
-Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+Apache-2.0. See [LICENSE](./LICENSE).
