@@ -3,7 +3,7 @@ import {
     LogType, PerpChangeLeverageReportModel, PerpDepositReportModel, PerpFeesReportModel,
     PerpFillOrderReportModel, PerpFundingReportModel, PerpMassCancelReportModel, PerpNewOrderReportModel,
     PerpOrderCancelReportModel, PerpOrderRevokeReportModel, PerpPlaceMassCancelReportModel,
-    PerpPlaceOrderReportModel, PerpWithdrawReportModel, SellMarketSeatReportModel, SpotFeesReportModel,
+    PerpPlaceOrderReportModel, PerpWithdrawReportModel, PlaceSwapOrderReportModel, SellMarketSeatReportModel, SpotFeesReportModel,
     SpotFillOrderReportModel, SpotMassCancelReportModel, SpotNewOrderReportModel,
     SpotOrderCancelReportModel, SpotOrderRevokeReportModel, SpotPlaceMassCancelReportModel,
     SpotPlaceOrderReportModel, WithdrawReportModel
@@ -727,6 +727,13 @@ export class ClientState {
                             instrId = spotPlaceOrderReport.instrId;
                             break;
                         }
+                        case LogType.swapOrder: {
+                            const placeSwapOrderReport = report as PlaceSwapOrderReportModel;
+                            takerClientId = -1;
+                            takerOrderId = placeSwapOrderReport.orderId;
+                            instrId = placeSwapOrderReport.instrId;
+                            break;
+                        }
                         case LogType.perpPlaceOrder: {
                             const perpPlaceOrderReport = report as PerpPlaceOrderReportModel;
                             takerClientId = perpPlaceOrderReport.clientId;
@@ -743,7 +750,7 @@ export class ClientState {
                                 spotFillOrderReport.clientId == engine.originalClientId) {
                                 let clientInstrument = this.instruments.get(instrId);
                                 if (clientInstrument == null) {
-                                    this.onError(report, "Instrument not found");
+                                    this.onError(report, `Instrument ${instrId} not found`);
                                     break;
                                 }
                                 clientInstrument.spot.change = true;
@@ -1051,7 +1058,7 @@ export class ClientState {
                                 let clientInstrument = this.instruments.
                                     get(instrId);
                                 if (clientInstrument == null) {
-                                    this.onError(report, "Instrument not found");
+                                    this.onError(report, `Instrument ${instrId} not found`);
                                     break;
                                 }
                                 clientInstrument.spot.change = true;
