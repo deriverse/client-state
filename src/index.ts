@@ -768,7 +768,7 @@ export class ClientState {
                                     const order = clientInstrument.spot.bidOrders.
                                         get(spotFillOrderReport.orderId);
                                     if (order != null) {
-                                        if (order.assetTokens == spotFillOrderReport.qty) {
+                                        if (Math.abs(order.assetTokens - spotFillOrderReport.qty) < 0.000000001) {
                                             clientInstrument.spot.bidOrders.
                                                 delete(spotFillOrderReport.orderId)
                                         }
@@ -788,7 +788,7 @@ export class ClientState {
                                     const order = clientInstrument.spot.askOrders.
                                         get(spotFillOrderReport.orderId);
                                     if (order != null) {
-                                        if (order.assetTokens == spotFillOrderReport.qty) {
+                                        if (Math.abs(order.assetTokens - spotFillOrderReport.qty) < 0.000000001) {
                                             clientInstrument.spot.askOrders.
                                                 delete(spotFillOrderReport.orderId)
                                         }
