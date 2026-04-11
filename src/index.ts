@@ -7,7 +7,7 @@ import {
     SpotFillOrderReportModel, SpotMassCancelReportModel, SpotNewOrderReportModel,
     SpotOrderCancelReportModel, SpotOrderRevokeReportModel, SpotPlaceMassCancelReportModel,
     SpotPlaceOrderReportModel, WithdrawReportModel
-} from "@deriverse/kit";
+} from "../../kit";
 import { Address, AddressesByLookupTableAddress, fetchAddressesForLookupTables, GetMultipleAccountsApi, Rpc, Signature, TransactionError } from "@solana/kit";
 
 const IS_LONG_MARGIN_CALL = 0x40;
@@ -349,7 +349,8 @@ export type OnFillOrder = (
     role: Role,
     tradeDirection: TradeDirection,
     takerOrderId: number,
-    report: LogMessage
+    report: LogMessage,
+    slot: number
 ) => void;
 const loadSpotInstrStatisticsDummy = async (instrId: number) => { };
 const writeSpotInstrStatisticsDummy = async (instrId: number) => { };
@@ -365,7 +366,8 @@ const onFillOrderDummy = (
     role: Role,
     tradeDirection: TradeDirection,
     takerOrderId: number,
-    report: LogMessage
+    report: LogMessage,
+    slot: number
 ) => { };
 
 export async function createClientState(
@@ -547,6 +549,7 @@ export class ClientState {
         tradeDirection: TradeDirection,
         takerOrderId: number,
         report: SpotFillOrderReportModel,
+        slot: number
     ) {
         const qty = tradeDirection == TradeDirection.buy ? report.qty : -report.qty;
         const crncy = tradeDirection == TradeDirection.buy ? -report.crncy : report.crncy;
@@ -600,7 +603,7 @@ export class ClientState {
         }
         instrument.spot.assetTokenPosition += qty;
         instrument.spot.crncyTokenPosition += crncy;
-        this.onSpotFillOrder(instrument.info.instrId, role, tradeDirection, takerOrderId, report);
+        this.onSpotFillOrder(instrument.info.instrId, role, tradeDirection, takerOrderId, report, slot);
     }
 
     private perpFill(
@@ -609,6 +612,7 @@ export class ClientState {
         tradeDirection: TradeDirection,
         takerOrderId: number,
         report: PerpFillOrderReportModel,
+        slot: number
     ) {
         const qty = tradeDirection == TradeDirection.buy ? report.perps : -report.perps;
         //const crncy = tradeDirection == TradeDirection.buy ? -report.crncy : report.crncy;
@@ -646,11 +650,12 @@ export class ClientState {
                 instrument.perp.futures -= report.perps;
             }
         }
-        this.onPerpFillOrder(instrument.info.instrId, role, tradeDirection, takerOrderId, report);
+        this.onPerpFillOrder(instrument.info.instrId, role, tradeDirection, takerOrderId, report, slot);
     }
 
     update(
         engine: Engine,
+        slot: number,
         logsNotifications: LogsNotifications | null
     ) {
         if (logsNotifications
@@ -663,7 +668,8 @@ export class ClientState {
                 let takerOrderId = -1;
                 let lastDepositReport: DepositReportModel | null = null;
                 let lastWithdrawReport: WithdrawReportModel | null = null;
-                for (const report of logs) {
+                for (const report of logs)
+                {
                     switch (report.tag) {
                         case LogType.deposit: {
                             const depositReport = report as DepositReportModel;
@@ -757,11 +763,11 @@ export class ClientState {
                                 if (takerClientId == engine.originalClientId) {
                                     if (spotFillOrderReport.side == 0) {
                                         this.spotFill(clientInstrument, Role.taker, TradeDirection.sell,
-                                            takerOrderId, spotFillOrderReport);
+                                            takerOrderId, spotFillOrderReport, slot);
                                     }
                                     else {
                                         this.spotFill(clientInstrument, Role.taker, TradeDirection.buy,
-                                            takerOrderId, spotFillOrderReport);
+                                            takerOrderId, spotFillOrderReport, slot);
                                     }
                                 }
                                 else if (spotFillOrderReport.side == 0) {
@@ -782,7 +788,7 @@ export class ClientState {
                                         break;
                                     }
                                     this.spotFill(clientInstrument, Role.maker, TradeDirection.buy,
-                                        takerOrderId, spotFillOrderReport);
+                                        takerOrderId, spotFillOrderReport, slot);
                                 }
                                 else {
                                     const order = clientInstrument.spot.askOrders.
@@ -802,7 +808,7 @@ export class ClientState {
                                         break;
                                     }
                                     this.spotFill(clientInstrument, Role.maker, TradeDirection.sell,
-                                        takerOrderId, spotFillOrderReport);
+                                        takerOrderId, spotFillOrderReport, slot);
                                 }
                             }
                             break;
@@ -820,11 +826,11 @@ export class ClientState {
                                 if (takerClientId == engine.originalClientId) {
                                     if (perpFillOrderReport.side == 0) {
                                         this.perpFill(clientInstrument, Role.taker, TradeDirection.sell,
-                                            takerOrderId, perpFillOrderReport);
+                                            takerOrderId, perpFillOrderReport, slot);
                                     }
                                     else {
                                         this.perpFill(clientInstrument, Role.taker, TradeDirection.buy,
-                                            takerOrderId, perpFillOrderReport);
+                                            takerOrderId, perpFillOrderReport, slot);
                                     }
                                 }
                                 else if (perpFillOrderReport.side == 0) {
@@ -845,7 +851,7 @@ export class ClientState {
                                         break;
                                     }
                                     this.perpFill(clientInstrument, Role.maker, TradeDirection.buy,
-                                        takerOrderId, perpFillOrderReport);
+                                        takerOrderId, perpFillOrderReport, slot);
                                 }
                                 else {
                                     const order = clientInstrument.perp.askOrders.
@@ -865,7 +871,7 @@ export class ClientState {
                                         break;
                                     }
                                     this.perpFill(clientInstrument, Role.maker, TradeDirection.sell,
-                                        takerOrderId, perpFillOrderReport);
+                                        takerOrderId, perpFillOrderReport, slot);
                                 }
                             }
                             break;
