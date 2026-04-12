@@ -45,6 +45,7 @@ export interface Spot {
     rebates: number;
     locker: boolean;
     change: boolean;
+    slot: number;
 }
 export interface Perp {
     bidOrders: Map<number, Order>;
@@ -61,6 +62,7 @@ export interface Perp {
     rebates: number;
     locker: boolean;
     change: boolean;
+    slot: number;
 }
 export interface InstrInfo {
     instrId: number;
@@ -340,8 +342,8 @@ export type WriteSpotInstrStatistics = (instrId: number) => Promise<void>;
 export type OnError = (report: LogMessage, error: string) => Promise<void>;
 export type OnSpotFees = (instrId: number, report: SpotFeesReportModel) => void;
 export type OnPerpFees = (instrId: number, report: PerpFeesReportModel) => void;
-export type OnDeposit = (depositReport: DepositReportModel, lastWithdrawalReport: WithdrawReportModel | null) => void;
-export type OnWithdraw = (withdrawReport: WithdrawReportModel, lastDepositReport: DepositReportModel | null) => void;
+export type OnDeposit = (depositReport: DepositReportModel, lastWithdrawalReport: WithdrawReportModel | null, slot: number) => void;
+export type OnWithdraw = (withdrawReport: WithdrawReportModel, lastDepositReport: DepositReportModel | null, slot: number) => void;
 export type OnSpotPlaceOrder = (placeOrderReport: SpotPlaceOrderReportModel) => void;
 export type OnPerpPlaceOrder = (placeOrderReport: PerpPlaceOrderReportModel) => void;
 export type OnFillOrder = (
@@ -350,15 +352,14 @@ export type OnFillOrder = (
     tradeDirection: TradeDirection,
     takerOrderId: number,
     report: LogMessage,
-    slot: number
 ) => void;
 const loadSpotInstrStatisticsDummy = async (instrId: number) => { };
 const writeSpotInstrStatisticsDummy = async (instrId: number) => { };
 const onErrorDummy = async (report: LogMessage, error: string) => { };
 const onSpotFeesDummy = (instrId: number, report: SpotFeesReportModel) => { };
 const onPerpFeesDummy = (instrId: number, report: PerpFeesReportModel) => { };
-const onDepositDummy = (depositReport: DepositReportModel, lastWithdrawalReport: WithdrawReportModel | null) => { };
-const onWithdrawDummy = (withdrawReport: WithdrawReportModel, lastDepositReport: DepositReportModel | null) => { };
+const onDepositDummy = (depositReport: DepositReportModel, lastWithdrawalReport: WithdrawReportModel | null, slot: number) => { };
+const onWithdrawDummy = (withdrawReport: WithdrawReportModel, lastDepositReport: DepositReportModel | null, slot: number) => { };
 const onSpotPlaceOrderDummy = (placeOrderReport: SpotPlaceOrderReportModel) => { };
 const onPerpPlaceOrderDummy = (placeOrderReport: PerpPlaceOrderReportModel) => { };
 const onFillOrderDummy = (
@@ -367,7 +368,6 @@ const onFillOrderDummy = (
     tradeDirection: TradeDirection,
     takerOrderId: number,
     report: LogMessage,
-    slot: number
 ) => { };
 
 export async function createClientState(
@@ -441,7 +441,8 @@ export async function createClientState(
                     fees: 0,
                     rebates: 0,
                     locker: false,
-                    change: true
+                    change: true,
+                    slot: 0
                 },
                 perp: {
                     bidOrders: new Map(),
@@ -457,7 +458,8 @@ export async function createClientState(
                     futures: 0,
                     lossCoverage: 0,
                     locker: false,
-                    change: true
+                    change: true, 
+                    slot: 0
                 },
             });
             if (clientData.spot.get(instrId) != null) {
@@ -549,7 +551,6 @@ export class ClientState {
         tradeDirection: TradeDirection,
         takerOrderId: number,
         report: SpotFillOrderReportModel,
-        slot: number
     ) {
         const qty = tradeDirection == TradeDirection.buy ? report.qty : -report.qty;
         const crncy = tradeDirection == TradeDirection.buy ? -report.crncy : report.crncy;
@@ -603,7 +604,7 @@ export class ClientState {
         }
         instrument.spot.assetTokenPosition += qty;
         instrument.spot.crncyTokenPosition += crncy;
-        this.onSpotFillOrder(instrument.info.instrId, role, tradeDirection, takerOrderId, report, slot);
+        this.onSpotFillOrder(instrument.info.instrId, role, tradeDirection, takerOrderId, report);
     }
 
     private perpFill(
@@ -612,7 +613,6 @@ export class ClientState {
         tradeDirection: TradeDirection,
         takerOrderId: number,
         report: PerpFillOrderReportModel,
-        slot: number
     ) {
         const qty = tradeDirection == TradeDirection.buy ? report.perps : -report.perps;
         //const crncy = tradeDirection == TradeDirection.buy ? -report.crncy : report.crncy;
@@ -650,7 +650,7 @@ export class ClientState {
                 instrument.perp.futures -= report.perps;
             }
         }
-        this.onPerpFillOrder(instrument.info.instrId, role, tradeDirection, takerOrderId, report, slot);
+        this.onPerpFillOrder(instrument.info.instrId, role, tradeDirection, takerOrderId, report);
     }
 
     update(
@@ -676,7 +676,7 @@ export class ClientState {
                             if (depositReport.clientId == engine.originalClientId) {
                                 const token = this.tokens.get(depositReport.tokenId) ?? 0;
                                 this.tokens.set(depositReport.tokenId, token + depositReport.amount);
-                                this.onDeposit(depositReport, lastWithdrawReport);
+                                this.onDeposit(depositReport, lastWithdrawReport, slot);
                                 lastDepositReport = depositReport;
                             }
                             break;
@@ -686,7 +686,7 @@ export class ClientState {
                             if (withdrawReport.clientId == engine.originalClientId) {
                                 const token = this.tokens.get(withdrawReport.tokenId) ?? 0;
                                 this.tokens.set(withdrawReport.tokenId, token - withdrawReport.amount);
-                                this.onWithdraw(withdrawReport, lastDepositReport);
+                                this.onWithdraw(withdrawReport, lastDepositReport, slot);
                                 lastWithdrawReport = withdrawReport;
                             }
                             break;
@@ -694,11 +694,12 @@ export class ClientState {
                         case LogType.perpDeposit: {
                             const perpDepositReport = report as PerpDepositReportModel;
                             if (perpDepositReport.clientId == engine.originalClientId) {
-                                const clientInstrument = this.instruments.get(perpDepositReport.instrId);
+                                let clientInstrument = this.instruments.get(perpDepositReport.instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
                                 }
+                                clientInstrument.perp.slot = slot;
                                 const token = this.tokens.get(clientInstrument.info.crncyTokenId);
                                 if (token == null) {
                                     this.onError(report, "Currency token not found");
@@ -712,11 +713,12 @@ export class ClientState {
                         case LogType.perpWithdraw: {
                             const perpWithdrawReport = report as PerpWithdrawReportModel;
                             if (perpWithdrawReport.clientId == engine.originalClientId) {
-                                const clientInstrument = this.instruments.get(perpWithdrawReport.instrId);
+                                let clientInstrument = this.instruments.get(perpWithdrawReport.instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
                                 }
+                                clientInstrument.perp.slot = slot;
                                 const token = this.tokens.get(clientInstrument.info.crncyTokenId) ?? 0;
                                 this.tokens.set(clientInstrument.info.crncyTokenId, token + perpWithdrawReport.amount);
                                 clientInstrument.perp.funds -= perpWithdrawReport.amount;
@@ -760,14 +762,15 @@ export class ClientState {
                                     break;
                                 }
                                 clientInstrument.spot.change = true;
+                                clientInstrument.spot.slot = slot;
                                 if (takerClientId == engine.originalClientId) {
                                     if (spotFillOrderReport.side == 0) {
                                         this.spotFill(clientInstrument, Role.taker, TradeDirection.sell,
-                                            takerOrderId, spotFillOrderReport, slot);
+                                            takerOrderId, spotFillOrderReport);
                                     }
                                     else {
                                         this.spotFill(clientInstrument, Role.taker, TradeDirection.buy,
-                                            takerOrderId, spotFillOrderReport, slot);
+                                            takerOrderId, spotFillOrderReport);
                                     }
                                 }
                                 else if (spotFillOrderReport.side == 0) {
@@ -788,7 +791,7 @@ export class ClientState {
                                         break;
                                     }
                                     this.spotFill(clientInstrument, Role.maker, TradeDirection.buy,
-                                        takerOrderId, spotFillOrderReport, slot);
+                                        takerOrderId, spotFillOrderReport);
                                 }
                                 else {
                                     const order = clientInstrument.spot.askOrders.
@@ -808,7 +811,7 @@ export class ClientState {
                                         break;
                                     }
                                     this.spotFill(clientInstrument, Role.maker, TradeDirection.sell,
-                                        takerOrderId, spotFillOrderReport, slot);
+                                        takerOrderId, spotFillOrderReport);
                                 }
                             }
                             break;
@@ -823,14 +826,15 @@ export class ClientState {
                                     break;
                                 }
                                 clientInstrument.perp.change = true;
+                                clientInstrument.perp.slot = slot;
                                 if (takerClientId == engine.originalClientId) {
                                     if (perpFillOrderReport.side == 0) {
                                         this.perpFill(clientInstrument, Role.taker, TradeDirection.sell,
-                                            takerOrderId, perpFillOrderReport, slot);
+                                            takerOrderId, perpFillOrderReport);
                                     }
                                     else {
                                         this.perpFill(clientInstrument, Role.taker, TradeDirection.buy,
-                                            takerOrderId, perpFillOrderReport, slot);
+                                            takerOrderId, perpFillOrderReport);
                                     }
                                 }
                                 else if (perpFillOrderReport.side == 0) {
@@ -851,7 +855,7 @@ export class ClientState {
                                         break;
                                     }
                                     this.perpFill(clientInstrument, Role.maker, TradeDirection.buy,
-                                        takerOrderId, perpFillOrderReport, slot);
+                                        takerOrderId, perpFillOrderReport);
                                 }
                                 else {
                                     const order = clientInstrument.perp.askOrders.
@@ -871,7 +875,7 @@ export class ClientState {
                                         break;
                                     }
                                     this.perpFill(clientInstrument, Role.maker, TradeDirection.sell,
-                                        takerOrderId, perpFillOrderReport, slot);
+                                        takerOrderId, perpFillOrderReport);
                                 }
                             }
                             break;
@@ -885,6 +889,7 @@ export class ClientState {
                                     break;
                                 }
                                 clientInstrument.spot.change = true;
+                                clientInstrument.spot.slot = slot;
                                 if (spotNewOrderReport.side == 0) {
                                     clientInstrument.spot.bidOrders.set(takerOrderId,
                                         {
@@ -931,6 +936,7 @@ export class ClientState {
                                     break;
                                 }
                                 clientInstrument.perp.change = true;
+                                clientInstrument.perp.slot = slot;
                                 if (perpNewOrderReport.side == 0) {
                                     clientInstrument.perp.bidOrders.set(takerOrderId,
                                         {
@@ -969,6 +975,7 @@ export class ClientState {
                                     token + spotFeesReport.fees);
                                 clientInstrument.spot.realizedPnl -= spotFeesReport.fees;
                                 clientInstrument.spot.fees += spotFeesReport.fees;
+                                clientInstrument.spot.slot = slot;
                                 this.onSpotFees(instrId, spotFeesReport);
                             }
                             break;
@@ -984,6 +991,7 @@ export class ClientState {
                                 clientInstrument.perp.funds -= perpFeesReport.fees;
                                 clientInstrument.perp.realizedPnl -= perpFeesReport.fees;
                                 clientInstrument.perp.fees += perpFeesReport.fees;
+                                clientInstrument.perp.slot = slot;
                                 this.onPerpFees(instrId, perpFeesReport);
                             }
                             break;
@@ -998,6 +1006,7 @@ export class ClientState {
                                     break;
                                 }
                                 clientInstrument.spot.change = true;
+                                clientInstrument.spot.slot = slot;
                                 if (spotOrderCancelReport.side == 0) {
                                     const order = clientInstrument.spot.bidOrders.
                                         get(spotOrderCancelReport.orderId);
@@ -1035,6 +1044,7 @@ export class ClientState {
                                     break;
                                 }
                                 clientInstrument.perp.change = true;
+                                clientInstrument.perp.slot = slot;
                                 if (perpOrderCancelReport.side == 0) {
                                     const order = clientInstrument.perp.bidOrders.
                                         get(perpOrderCancelReport.orderId);
@@ -1068,6 +1078,7 @@ export class ClientState {
                                     break;
                                 }
                                 clientInstrument.spot.change = true;
+                                clientInstrument.spot.slot = slot;
                                 if (spotOrderRevokeReport.side == 0) {
                                     const order = clientInstrument.spot.bidOrders.
                                         get(spotOrderRevokeReport.orderId);
@@ -1105,6 +1116,7 @@ export class ClientState {
                                     break;
                                 }
                                 clientInstrument.perp.change = true;
+                                clientInstrument.perp.slot = slot;
                                 if (perpOrderRevokeReport.side == 0) {
                                     const order = clientInstrument.perp.bidOrders.
                                         get(perpOrderRevokeReport.orderId);
@@ -1150,6 +1162,7 @@ export class ClientState {
                                     break;
                                 }
                                 clientInstrument.spot.change = true;
+                                clientInstrument.spot.slot = slot;
                                 if (spotMassCancelReport.side == 0) {
                                     const order = clientInstrument.spot.bidOrders.
                                         get(spotMassCancelReport.orderId);
@@ -1187,6 +1200,7 @@ export class ClientState {
                                     break;
                                 }
                                 clientInstrument.perp.change = true;
+                                clientInstrument.perp.slot = slot;
                                 if (perpMassCancelReport.side == 0) {
                                     const order = clientInstrument.spot.bidOrders.
                                         get(perpMassCancelReport.orderId);
@@ -1213,7 +1227,7 @@ export class ClientState {
                         case LogType.perpChangeLeverage: {
                             const perpChangeLeverageReportModel = report as PerpChangeLeverageReportModel;
                             if (perpChangeLeverageReportModel.clientId == engine.originalClientId) {
-                                const clientInstrument = this.instruments.
+                                let clientInstrument = this.instruments.
                                     get(perpChangeLeverageReportModel.instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
@@ -1226,7 +1240,7 @@ export class ClientState {
                         case LogType.perpFunding: {
                             const perpFundingReportModel = report as PerpFundingReportModel;
                             if (perpFundingReportModel.clientId == engine.originalClientId) {
-                                const clientInstrument = this.instruments.
+                                let clientInstrument = this.instruments.
                                     get(perpFundingReportModel.instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
