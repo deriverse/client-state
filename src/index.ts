@@ -728,11 +728,17 @@ export class ClientState {
                         case LogType.spotPlaceOrder: {
                             const spotPlaceOrderReport = report as SpotPlaceOrderReportModel;
                             takerClientId = spotPlaceOrderReport.clientId;
+                            instrId = spotPlaceOrderReport.instrId;
                             if (takerClientId == engine.originalClientId) {
+                                let clientInstrument = this.instruments.get(instrId);
+                                if (clientInstrument == null) {
+                                    this.onError(report, "Instrument not found");
+                                    break;
+                                }
+                                clientInstrument.spot.slot = slot;
                                 this.onSpotPlaceOrder(spotPlaceOrderReport);
                             }
                             takerOrderId = spotPlaceOrderReport.orderId;
-                            instrId = spotPlaceOrderReport.instrId;
                             break;
                         }
                         case LogType.swapOrder: {
@@ -745,11 +751,17 @@ export class ClientState {
                         case LogType.perpPlaceOrder: {
                             const perpPlaceOrderReport = report as PerpPlaceOrderReportModel;
                             takerClientId = perpPlaceOrderReport.clientId;
+                            instrId = perpPlaceOrderReport.instrId;
                             if (takerClientId == engine.originalClientId) {
+                                let clientInstrument = this.instruments.get(instrId);
+                                if (clientInstrument == null) {
+                                    this.onError(report, "Instrument not found");
+                                    break;
+                                }
+                                clientInstrument.perp.slot = slot;
                                 this.onPerpPlaceOrder(perpPlaceOrderReport);
                             }
                             takerOrderId = perpPlaceOrderReport.orderId;
-                            instrId = perpPlaceOrderReport.instrId;
                             break;
                         }
                         case LogType.spotFillOrder: {
