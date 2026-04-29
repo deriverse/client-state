@@ -1,5 +1,5 @@
 import {
-    BuyMarketSeatReportModel, DepositReportModel, Engine, Instrument, LogMessage,
+    BuyMarketSeatReportModel, DepositReportModel, Engine, FeesDepositReportModel, FeesWithdrawReportModel, Instrument, LogMessage,
     LogType, PerpChangeLeverageReportModel, PerpDepositReportModel, PerpFeesReportModel,
     PerpFillOrderReportModel, PerpFundingReportModel, PerpMassCancelReportModel, PerpNewOrderReportModel,
     PerpOrderCancelReportModel, PerpOrderRevokeReportModel, PerpPlaceMassCancelReportModel,
@@ -71,6 +71,7 @@ export interface InstrInfo {
     crncyTokenId: number;
     crncyMint: Address;
     lut: AddressesByLookupTableAddress;
+    seqNo: number
 }
 export interface ClientInstrument {
     info: InstrInfo;
@@ -418,6 +419,7 @@ export async function createClientState(
             const initAassetTokens= assetToken == null?0:assetToken.amount
             clientOpsState.instruments.set(instrId, {
                 info: {
+                    seqNo: 0,
                     instrId: instrId,
                     assetTokenId: assetTokenId,
                     crncyTokenId: crncyTokenId,
@@ -495,6 +497,7 @@ export async function createClientState(
 export class ClientState {
     instruments: Map<number, ClientInstrument>;
     tokens: Map<number, number>;
+    seqNo: number;
     loadSpotInstrStatistics: LoadSpotInstrStatistics;
     writeSpotInstrStatistics: WriteSpotInstrStatistics;
     onError: OnError;
@@ -523,6 +526,7 @@ export class ClientState {
     ) {
         this.instruments = instruments;
         this.tokens = tokens;
+        this.seqNo = 0;
         this.loadSpotInstrStatistics = loadSpotInstrStatistics;
         this.writeSpotInstrStatistics = writeSpotInstrStatistics;
         this.onError = onError;
@@ -668,8 +672,7 @@ export class ClientState {
                 let takerOrderId = -1;
                 let lastDepositReport: DepositReportModel | null = null;
                 let lastWithdrawReport: WithdrawReportModel | null = null;
-                for (const report of logs)
-                {
+                for (const report of logs) {
                     switch (report.tag) {
                         case LogType.deposit: {
                             const depositReport = report as DepositReportModel;
@@ -678,6 +681,10 @@ export class ClientState {
                                 this.tokens.set(depositReport.tokenId, token + depositReport.amount);
                                 this.onDeposit(depositReport, lastWithdrawReport, slot);
                                 lastDepositReport = depositReport;
+                                if (this.seqNo != 0 && (this.seqNo + 1) != depositReport.seqNo) {
+                                    this.onError(report, "Bad Seq Number");
+                                }
+                                this.seqNo = depositReport.seqNo;
                             }
                             break;
                         }
@@ -688,13 +695,41 @@ export class ClientState {
                                 this.tokens.set(withdrawReport.tokenId, token - withdrawReport.amount);
                                 this.onWithdraw(withdrawReport, lastDepositReport, slot);
                                 lastWithdrawReport = withdrawReport;
+                                if (this.seqNo != 0 && (this.seqNo + 1) != withdrawReport.seqNo) {
+                                    this.onError(report, "Bad Seq Number");
+                                }
+                                this.seqNo = withdrawReport.seqNo;
+                            }
+                            break;
+                        }
+                        case LogType.feesDeposit: {
+                            const feesDepositReport = report as FeesDepositReportModel;
+                            if (feesDepositReport.clientId == engine.originalClientId) {
+                                const token = this.tokens.get(feesDepositReport.tokenId) ?? 0;
+                                this.tokens.set(feesDepositReport.tokenId, token - feesDepositReport.amount);
+                                if (this.seqNo != 0 && (this.seqNo + 1) != feesDepositReport.seqNo) {
+                                    this.onError(report, "Bad Seq Number");
+                                }
+                                this.seqNo = feesDepositReport.seqNo;
+                            }
+                            break;
+                        }
+                        case LogType.feesWithdraw: {
+                            const feesWithdrawReport = report as FeesWithdrawReportModel;
+                            if (feesWithdrawReport.clientId == engine.originalClientId) {
+                                const token = this.tokens.get(feesWithdrawReport.tokenId) ?? 0;
+                                this.tokens.set(feesWithdrawReport.tokenId, token + feesWithdrawReport.amount);
+                                if (this.seqNo != 0 && (this.seqNo + 1) != feesWithdrawReport.seqNo) {
+                                    this.onError(report, "Bad Seq Number");
+                                }
+                                this.seqNo = feesWithdrawReport.seqNo;
                             }
                             break;
                         }
                         case LogType.perpDeposit: {
                             const perpDepositReport = report as PerpDepositReportModel;
-                            if (perpDepositReport.clientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.get(perpDepositReport.instrId);
+                            let clientInstrument = this.instruments.get(perpDepositReport.instrId);
+                            if (perpDepositReport.clientId == engine.originalClientId) {                       
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -708,12 +743,19 @@ export class ClientState {
                                 this.tokens.set(clientInstrument.info.crncyTokenId, token - perpDepositReport.amount);
                                 clientInstrument.perp.funds += perpDepositReport.amount;
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpDepositReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpDepositReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpWithdraw: {
                             const perpWithdrawReport = report as PerpWithdrawReportModel;
-                            if (perpWithdrawReport.clientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.get(perpWithdrawReport.instrId);
+                            let clientInstrument = this.instruments.get(perpWithdrawReport.instrId);
+                            if (perpWithdrawReport.clientId == engine.originalClientId) {         
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -723,14 +765,21 @@ export class ClientState {
                                 this.tokens.set(clientInstrument.info.crncyTokenId, token + perpWithdrawReport.amount);
                                 clientInstrument.perp.funds -= perpWithdrawReport.amount;
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpWithdrawReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpWithdrawReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.spotPlaceOrder: {
                             const spotPlaceOrderReport = report as SpotPlaceOrderReportModel;
                             takerClientId = spotPlaceOrderReport.clientId;
                             instrId = spotPlaceOrderReport.instrId;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (takerClientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -739,6 +788,13 @@ export class ClientState {
                                 this.onSpotPlaceOrder(spotPlaceOrderReport);
                             }
                             takerOrderId = spotPlaceOrderReport.orderId;
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != spotPlaceOrderReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = spotPlaceOrderReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.swapOrder: {
@@ -746,14 +802,22 @@ export class ClientState {
                             takerClientId = -1;
                             takerOrderId = placeSwapOrderReport.orderId;
                             instrId = placeSwapOrderReport.instrId;
+                            let clientInstrument = this.instruments.get(instrId);
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != placeSwapOrderReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = placeSwapOrderReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpPlaceOrder: {
                             const perpPlaceOrderReport = report as PerpPlaceOrderReportModel;
                             takerClientId = perpPlaceOrderReport.clientId;
                             instrId = perpPlaceOrderReport.instrId;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (takerClientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -762,13 +826,20 @@ export class ClientState {
                                 this.onPerpPlaceOrder(perpPlaceOrderReport);
                             }
                             takerOrderId = perpPlaceOrderReport.orderId;
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpPlaceOrderReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpPlaceOrderReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.spotFillOrder: {
                             const spotFillOrderReport = report as SpotFillOrderReportModel;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (takerClientId == engine.originalClientId ||
                                 spotFillOrderReport.clientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, `Instrument ${instrId} not found`);
                                     break;
@@ -826,13 +897,20 @@ export class ClientState {
                                         takerOrderId, spotFillOrderReport);
                                 }
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != spotFillOrderReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = spotFillOrderReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpFillOrder: {
                             const perpFillOrderReport = report as PerpFillOrderReportModel;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (takerClientId == engine.originalClientId ||
-                                perpFillOrderReport.clientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.get(instrId);
+                                perpFillOrderReport.clientId == engine.originalClientId) {                  
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -890,12 +968,19 @@ export class ClientState {
                                         takerOrderId, perpFillOrderReport);
                                 }
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpFillOrderReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpFillOrderReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.spotNewOrder: {
+                            const spotNewOrderReport = report as SpotNewOrderReportModel;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (takerClientId == engine.originalClientId) {
-                                const spotNewOrderReport = report as SpotNewOrderReportModel;
-                                let clientInstrument = this.instruments.get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -937,12 +1022,19 @@ export class ClientState {
                                         token - spotNewOrderReport.qty);
                                 }
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != spotNewOrderReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = spotNewOrderReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpNewOrder: {
+                            const perpNewOrderReport = report as PerpNewOrderReportModel;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (takerClientId == engine.originalClientId) {
-                                const perpNewOrderReport = report as PerpNewOrderReportModel;
-                                let clientInstrument = this.instruments.get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -972,12 +1064,19 @@ export class ClientState {
                                     clientInstrument.perp.futures -= perpNewOrderReport.perps;
                                 }
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpNewOrderReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpNewOrderReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.spotFees: {
                             const spotFeesReport = report as SpotFeesReportModel;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (takerClientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -990,12 +1089,19 @@ export class ClientState {
                                 clientInstrument.spot.slot = slot;
                                 this.onSpotFees(instrId, spotFeesReport);
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != spotFeesReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = spotFeesReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpFees: {
                             const perpFeesReport = report as PerpFeesReportModel;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (takerClientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -1006,13 +1112,19 @@ export class ClientState {
                                 clientInstrument.perp.slot = slot;
                                 this.onPerpFees(instrId, perpFeesReport);
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpFeesReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpFeesReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.spotOrderCancel: {
                             const spotOrderCancelReport = report as SpotOrderCancelReportModel;
+                            let clientInstrument = this.instruments.get(spotOrderCancelReport.instrId);
                             if (spotOrderCancelReport.clientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.
-                                    get(spotOrderCancelReport.instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -1044,13 +1156,19 @@ export class ClientState {
                                         token + spotOrderCancelReport.qty);
                                 }
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != spotOrderCancelReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = spotOrderCancelReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpOrderCancel: {
                             const perpOrderCancelReport = report as PerpOrderCancelReportModel;
+                            let clientInstrument = this.instruments.get(perpOrderCancelReport.instrId);
                             if (perpOrderCancelReport.clientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.
-                                    get(perpOrderCancelReport.instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -1078,13 +1196,19 @@ export class ClientState {
                                     clientInstrument.perp.futures += perpOrderCancelReport.perps;
                                 }
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpOrderCancelReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpOrderCancelReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.spotOrderRevoke: {
                             const spotOrderRevokeReport = report as SpotOrderRevokeReportModel;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (spotOrderRevokeReport.clientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.
-                                    get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, `Instrument ${instrId} not found`);
                                     break;
@@ -1116,13 +1240,19 @@ export class ClientState {
                                         token + spotOrderRevokeReport.qty);
                                 }
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != spotOrderRevokeReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = spotOrderRevokeReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpOrderRevoke: {
                             const perpOrderRevokeReport = report as PerpOrderRevokeReportModel;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (perpOrderRevokeReport.clientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.
-                                    get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -1150,25 +1280,47 @@ export class ClientState {
                                     clientInstrument.perp.futures += perpOrderRevokeReport.perps;
                                 }
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpOrderRevokeReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpOrderRevokeReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.spotPlaceMassCancel: {
                             const spotPlaceMassCancelReport = report as SpotPlaceMassCancelReportModel;
                             takerClientId = spotPlaceMassCancelReport.clientId;
                             instrId = spotPlaceMassCancelReport.instrId;
+                            let clientInstrument = this.instruments.get(instrId);
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != spotPlaceMassCancelReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = spotPlaceMassCancelReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpPlaceMassCancel: {
                             const perpPlaceMassCancelReport = report as PerpPlaceMassCancelReportModel;
                             takerClientId = perpPlaceMassCancelReport.clientId;
                             instrId = perpPlaceMassCancelReport.instrId
+                            let clientInstrument = this.instruments.get(instrId);
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpPlaceMassCancelReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpPlaceMassCancelReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.spotMassCancel: {
                             const spotMassCancelReport = report as SpotMassCancelReportModel;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (takerClientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.
-                                    get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -1200,13 +1352,19 @@ export class ClientState {
                                         token + spotMassCancelReport.qty);
                                 }
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != spotMassCancelReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = spotMassCancelReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpMassCancel: {
                             const perpMassCancelReport = report as PerpMassCancelReportModel;
+                            let clientInstrument = this.instruments.get(instrId);
                             if (takerClientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.
-                                    get(instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -1234,26 +1392,39 @@ export class ClientState {
                                     clientInstrument.perp.futures += perpMassCancelReport.perps;
                                 }
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpMassCancelReport.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpMassCancelReport.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpChangeLeverage: {
                             const perpChangeLeverageReportModel = report as PerpChangeLeverageReportModel;
+                            let clientInstrument = this.instruments.
+                                get(perpChangeLeverageReportModel.instrId);
                             if (perpChangeLeverageReportModel.clientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.
-                                    get(perpChangeLeverageReportModel.instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
                                 }
                                 clientInstrument.perp.leverage = perpChangeLeverageReportModel.leverage;
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpChangeLeverageReportModel.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpChangeLeverageReportModel.seqNo;
+                            }
                             break;
                         }
                         case LogType.perpFunding: {
                             const perpFundingReportModel = report as PerpFundingReportModel;
+                            let clientInstrument = this.instruments.get(perpFundingReportModel.instrId);
                             if (perpFundingReportModel.clientId == engine.originalClientId) {
-                                let clientInstrument = this.instruments.
-                                    get(perpFundingReportModel.instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -1261,13 +1432,20 @@ export class ClientState {
                                 clientInstrument.perp.funds += perpFundingReportModel.funding;
                                 clientInstrument.perp.funding += perpFundingReportModel.funding;
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != perpFundingReportModel.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = perpFundingReportModel.seqNo;
+                            }
                             break;
                         }
                         case LogType.buyMarketSeat: {
                             const buyMarketSeatReportModel = report as BuyMarketSeatReportModel;
+                            const clientInstrument = this.instruments.
+                                get(buyMarketSeatReportModel.instrId);
                             if (buyMarketSeatReportModel.clientId == engine.originalClientId) {
-                                const clientInstrument = this.instruments.
-                                    get(buyMarketSeatReportModel.instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -1282,13 +1460,20 @@ export class ClientState {
                                 this.tokens.set(clientInstrument.info.crncyTokenId,
                                     token - sum);
                             }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != buyMarketSeatReportModel.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = buyMarketSeatReportModel.seqNo;
+                            }
                             break;
                         }
                         case LogType.sellMarketSeat: {
                             const sellMarketSeatReportModel = report as SellMarketSeatReportModel;
+                            const clientInstrument = this.instruments.
+                                get(sellMarketSeatReportModel.instrId);
                             if (sellMarketSeatReportModel.clientId == engine.originalClientId) {
-                                const clientInstrument = this.instruments.
-                                    get(sellMarketSeatReportModel.instrId);
                                 if (clientInstrument == null) {
                                     this.onError(report, "Instrument not found");
                                     break;
@@ -1297,6 +1482,13 @@ export class ClientState {
                                 let token = this.tokens.get(clientInstrument.info.crncyTokenId) ?? 0;
                                 this.tokens.set(clientInstrument.info.crncyTokenId,
                                     token + sellMarketSeatReportModel.seatPrice);
+                            }
+                            if (clientInstrument != null) {
+                                if (clientInstrument.info.seqNo != 0 &&
+                                    (clientInstrument.info.seqNo + 1) != sellMarketSeatReportModel.seqNo) {
+                                    this.onError(report, "Bad Instr Seq Number");
+                                }
+                                clientInstrument.info.seqNo = sellMarketSeatReportModel.seqNo;
                             }
                             break;
                         }
