@@ -682,7 +682,8 @@ export class ClientState {
                                 this.onDeposit(depositReport, lastWithdrawReport, slot);
                                 lastDepositReport = depositReport;
                                 if (this.seqNo != 0 && (this.seqNo + 1) != depositReport.seqNo) {
-                                    this.onError(report, "Bad Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Number: gap ${depositReport.seqNo - this.seqNo - 1}`);
                                 }
                                 this.seqNo = depositReport.seqNo;
                             }
@@ -696,7 +697,8 @@ export class ClientState {
                                 this.onWithdraw(withdrawReport, lastDepositReport, slot);
                                 lastWithdrawReport = withdrawReport;
                                 if (this.seqNo != 0 && (this.seqNo + 1) != withdrawReport.seqNo) {
-                                    this.onError(report, "Bad Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Number: gap ${withdrawReport.seqNo - this.seqNo - 1}`);
                                 }
                                 this.seqNo = withdrawReport.seqNo;
                             }
@@ -708,7 +710,8 @@ export class ClientState {
                                 const token = this.tokens.get(feesDepositReport.tokenId) ?? 0;
                                 this.tokens.set(feesDepositReport.tokenId, token - feesDepositReport.amount);
                                 if (this.seqNo != 0 && (this.seqNo + 1) != feesDepositReport.seqNo) {
-                                    this.onError(report, "Bad Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Number: gap ${feesDepositReport.seqNo - this.seqNo - 1}`);
                                 }
                                 this.seqNo = feesDepositReport.seqNo;
                             }
@@ -720,7 +723,8 @@ export class ClientState {
                                 const token = this.tokens.get(feesWithdrawReport.tokenId) ?? 0;
                                 this.tokens.set(feesWithdrawReport.tokenId, token + feesWithdrawReport.amount);
                                 if (this.seqNo != 0 && (this.seqNo + 1) != feesWithdrawReport.seqNo) {
-                                    this.onError(report, "Bad Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Number: gap ${feesWithdrawReport.seqNo - this.seqNo - 1}`);
                                 }
                                 this.seqNo = feesWithdrawReport.seqNo;
                             }
@@ -746,7 +750,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpDepositReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                         `Bad Instr #${perpDepositReport.instrId} Seq Number: gap ${perpDepositReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpDepositReport.seqNo;
                             }
@@ -768,7 +773,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpWithdrawReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${perpWithdrawReport.instrId} Number: gap ${perpWithdrawReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpWithdrawReport.seqNo;
                             }
@@ -791,7 +797,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != spotPlaceOrderReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${spotPlaceOrderReport.instrId} Number: gap ${spotPlaceOrderReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = spotPlaceOrderReport.seqNo;
                             }
@@ -806,7 +813,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != placeSwapOrderReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${placeSwapOrderReport.instrId} Number: gap ${placeSwapOrderReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = placeSwapOrderReport.seqNo;
                             }
@@ -829,7 +837,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpPlaceOrderReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${perpPlaceOrderReport.instrId} Number: gap ${perpPlaceOrderReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpPlaceOrderReport.seqNo;
                             }
@@ -900,7 +909,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != spotFillOrderReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${spotFillOrderReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = spotFillOrderReport.seqNo;
                             }
@@ -971,7 +981,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpFillOrderReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${perpFillOrderReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpFillOrderReport.seqNo;
                             }
@@ -1025,7 +1036,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != spotNewOrderReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${spotNewOrderReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = spotNewOrderReport.seqNo;
                             }
@@ -1067,7 +1079,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpNewOrderReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${perpNewOrderReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpNewOrderReport.seqNo;
                             }
@@ -1092,7 +1105,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != spotFeesReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${spotFeesReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = spotFeesReport.seqNo;
                             }
@@ -1115,7 +1129,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpFeesReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${perpFeesReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpFeesReport.seqNo;
                             }
@@ -1159,7 +1174,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != spotOrderCancelReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${spotOrderCancelReport.instrId} Number: gap ${spotOrderCancelReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = spotOrderCancelReport.seqNo;
                             }
@@ -1199,7 +1215,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpOrderCancelReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${perpOrderCancelReport.instrId} Number: gap ${perpOrderCancelReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpOrderCancelReport.seqNo;
                             }
@@ -1243,7 +1260,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != spotOrderRevokeReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${spotOrderRevokeReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = spotOrderRevokeReport.seqNo;
                             }
@@ -1283,7 +1301,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpOrderRevokeReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${perpOrderRevokeReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpOrderRevokeReport.seqNo;
                             }
@@ -1297,7 +1316,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != spotPlaceMassCancelReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${spotPlaceMassCancelReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = spotPlaceMassCancelReport.seqNo;
                             }
@@ -1311,7 +1331,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpPlaceMassCancelReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${perpPlaceMassCancelReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpPlaceMassCancelReport.seqNo;
                             }
@@ -1355,7 +1376,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != spotMassCancelReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${spotMassCancelReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = spotMassCancelReport.seqNo;
                             }
@@ -1395,7 +1417,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpMassCancelReport.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${instrId} Number: gap ${perpMassCancelReport.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpMassCancelReport.seqNo;
                             }
@@ -1415,7 +1438,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpChangeLeverageReportModel.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${perpChangeLeverageReportModel.instrId} Number: gap ${perpChangeLeverageReportModel.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpChangeLeverageReportModel.seqNo;
                             }
@@ -1435,7 +1459,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != perpFundingReportModel.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${perpFundingReportModel.instrId} Number: gap ${perpFundingReportModel.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = perpFundingReportModel.seqNo;
                             }
@@ -1463,7 +1488,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != buyMarketSeatReportModel.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${buyMarketSeatReportModel.instrId} Number: gap ${buyMarketSeatReportModel.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = buyMarketSeatReportModel.seqNo;
                             }
@@ -1486,7 +1512,8 @@ export class ClientState {
                             if (clientInstrument != null) {
                                 if (clientInstrument.info.seqNo != 0 &&
                                     (clientInstrument.info.seqNo + 1) != sellMarketSeatReportModel.seqNo) {
-                                    this.onError(report, "Bad Instr Seq Number");
+                                    this.onError(report,
+                                        `Bad Seq Instr #${sellMarketSeatReportModel.instrId} Number: gap ${sellMarketSeatReportModel.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = sellMarketSeatReportModel.seqNo;
                             }
