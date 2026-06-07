@@ -1522,36 +1522,27 @@ export class ClientState {
                         case LogType.kaminoChangePosition: {
                             const kaminoChangePositionReport = report as KaminoChangePositionReportModel;
                             let clientInstrument = this.instruments.get(kaminoChangePositionReport.instrId);
-                            if (kaminoChangePositionReport.clientId == engine.originalClientId) {
-                                if (clientInstrument == null) {
-                                    this.onError(report, "Instrument not found");
-                                    break;
-                                }
-                                if (kaminoChangePositionReport.assetsIsCollateral === 1) {
-                                    // asset is collateral, crncy is borrow
-                                    const assetToken = this.tokens.get(clientInstrument.info.assetTokenId) ?? 0;
-                                    this.tokens.set(clientInstrument.info.assetTokenId,
-                                        assetToken + kaminoChangePositionReport.collateralDelta);
-                                    const crncyToken = this.tokens.get(clientInstrument.info.crncyTokenId) ?? 0;
-                                    this.tokens.set(clientInstrument.info.crncyTokenId,
-                                        crncyToken + kaminoChangePositionReport.borrowDelta);
-                                } else {
-                                    // crncy is collateral, asset is borrow
-                                    const crncyToken = this.tokens.get(clientInstrument.info.crncyTokenId) ?? 0;
-                                    this.tokens.set(clientInstrument.info.crncyTokenId,
-                                        crncyToken + kaminoChangePositionReport.collateralDelta);
-                                    const assetToken = this.tokens.get(clientInstrument.info.assetTokenId) ?? 0;
-                                    this.tokens.set(clientInstrument.info.assetTokenId,
-                                        assetToken + kaminoChangePositionReport.borrowDelta);
-                                }
+                            if (clientInstrument == null) {
+                                break;
                             }
-                            if (clientInstrument != null) {
-                                if (clientInstrument.info.seqNo != 0 &&
-                                    (clientInstrument.info.seqNo + 1) != kaminoChangePositionReport.seqNo) {
-                                    this.onError(report,
-                                        `Bad Seq Instr #${kaminoChangePositionReport.instrId} Number: gap ${kaminoChangePositionReport.seqNo - clientInstrument.info.seqNo - 1}`);
+                            if (clientInstrument.info.seqNo != 0 &&
+                                (clientInstrument.info.seqNo + 1) != kaminoChangePositionReport.seqNo) {
+                                this.onError(report,
+                                    `Bad Seq Instr #${kaminoChangePositionReport.instrId} Number: gap ${kaminoChangePositionReport.seqNo - clientInstrument.info.seqNo - 1}`);
+                            }
+                            clientInstrument.info.seqNo = kaminoChangePositionReport.seqNo;
+                            if (kaminoChangePositionReport.clientId == engine.originalClientId) {
+                                const assetsIsCollateral = kaminoChangePositionReport.assetsIsCollateral != 0;
+                                const assetToken = this.tokens.get(clientInstrument!.info.assetTokenId) ?? 0;
+                                const crncyToken = this.tokens.get(clientInstrument!.info.crncyTokenId) ?? 0;
+                                if (assetsIsCollateral) {
+                                    this.tokens.set(clientInstrument!.info.assetTokenId, assetToken - kaminoChangePositionReport.collateralDelta);
+                                    this.tokens.set(clientInstrument!.info.crncyTokenId, crncyToken + kaminoChangePositionReport.borrowDelta);
                                 }
-                                clientInstrument.info.seqNo = kaminoChangePositionReport.seqNo;
+                                else {
+                                    this.tokens.set(clientInstrument!.info.assetTokenId, assetToken + kaminoChangePositionReport.borrowDelta);
+                                    this.tokens.set(clientInstrument!.info.crncyTokenId, crncyToken - kaminoChangePositionReport.collateralDelta);
+                                }
                             }
                             break;
                         }
