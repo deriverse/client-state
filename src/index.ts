@@ -1,5 +1,5 @@
 import {
-    BuyMarketSeatReportModel, DepositReportModel, Engine, FeesDepositReportModel, FeesWithdrawReportModel, Instrument, LogMessage,
+    BuyMarketSeatReportModel, DepositReportModel, Engine, FeesDepositReportModel, FeesWithdrawReportModel, Instrument, KaminoChangePositionReportModel, LogMessage,
     LogType, PerpChangeLeverageReportModel, PerpDepositReportModel, PerpFeesReportModel,
     PerpFillOrderReportModel, PerpFundingReportModel, PerpMassCancelReportModel, PerpNewOrderReportModel,
     PerpOrderCancelReportModel, PerpOrderRevokeReportModel, PerpPlaceMassCancelReportModel,
@@ -1516,6 +1516,33 @@ export class ClientState {
                                         `Bad Seq Instr #${sellMarketSeatReportModel.instrId} Number: gap ${sellMarketSeatReportModel.seqNo - clientInstrument.info.seqNo - 1}`);
                                 }
                                 clientInstrument.info.seqNo = sellMarketSeatReportModel.seqNo;
+                            }
+                            break;
+                        }
+                        case LogType.kaminoChangePosition: {
+                            const kaminoChangePositionReport = report as KaminoChangePositionReportModel;
+                            let clientInstrument = this.instruments.get(kaminoChangePositionReport.instrId);
+                            if (clientInstrument == null) {
+                                break;
+                            }
+                            if (clientInstrument.info.seqNo != 0 &&
+                                (clientInstrument.info.seqNo + 1) != kaminoChangePositionReport.seqNo) {
+                                this.onError(report,
+                                    `Bad Seq Instr #${kaminoChangePositionReport.instrId} Number: gap ${kaminoChangePositionReport.seqNo - clientInstrument.info.seqNo - 1}`);
+                            }
+                            clientInstrument.info.seqNo = kaminoChangePositionReport.seqNo;
+                            if (kaminoChangePositionReport.clientId == engine.originalClientId) {
+                                const assetsIsCollateral = kaminoChangePositionReport.assetsIsCollateral != 0;
+                                const assetToken = this.tokens.get(clientInstrument!.info.assetTokenId) ?? 0;
+                                const crncyToken = this.tokens.get(clientInstrument!.info.crncyTokenId) ?? 0;
+                                if (assetsIsCollateral) {
+                                    this.tokens.set(clientInstrument!.info.assetTokenId, assetToken - kaminoChangePositionReport.collateralDelta);
+                                    this.tokens.set(clientInstrument!.info.crncyTokenId, crncyToken + kaminoChangePositionReport.borrowDelta);
+                                }
+                                else {
+                                    this.tokens.set(clientInstrument!.info.assetTokenId, assetToken + kaminoChangePositionReport.borrowDelta);
+                                    this.tokens.set(clientInstrument!.info.crncyTokenId, crncyToken - kaminoChangePositionReport.collateralDelta);
+                                }
                             }
                             break;
                         }
