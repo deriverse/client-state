@@ -347,6 +347,7 @@ export type OnDeposit = (depositReport: DepositReportModel, lastWithdrawalReport
 export type OnWithdraw = (withdrawReport: WithdrawReportModel, lastDepositReport: DepositReportModel | null, slot: number) => void;
 export type OnSpotPlaceOrder = (placeOrderReport: SpotPlaceOrderReportModel) => void;
 export type OnPerpPlaceOrder = (placeOrderReport: PerpPlaceOrderReportModel) => void;
+export type OnKaminoChangePosition = (placeOrderReport: KaminoChangePositionReportModel) => void;
 export type OnFillOrder = (
     instrId: number,
     role: Role,
@@ -363,6 +364,7 @@ const onDepositDummy = (depositReport: DepositReportModel, lastWithdrawalReport:
 const onWithdrawDummy = (withdrawReport: WithdrawReportModel, lastDepositReport: DepositReportModel | null, slot: number) => { };
 const onSpotPlaceOrderDummy = (placeOrderReport: SpotPlaceOrderReportModel) => { };
 const onPerpPlaceOrderDummy = (placeOrderReport: PerpPlaceOrderReportModel) => { };
+const onKaminoChangePositionDummy = (kaminoChangePositionReport: KaminoChangePositionReportModel) => { };
 const onFillOrderDummy = (
     instrId: number,
     role: Role,
@@ -387,6 +389,7 @@ export async function createClientState(
         onSpotFillOrder?: OnFillOrder,
         onPerpPlaceOrder?: OnPerpPlaceOrder,
         onPerpFillOrder?: OnFillOrder
+        onKaminoChangePosition?: OnKaminoChangePosition
     }
 ): Promise<ClientState | null> {
     let clientOpsState = new ClientState(
@@ -401,7 +404,8 @@ export async function createClientState(
         args.onSpotPlaceOrder??onSpotPlaceOrderDummy,
         args.onSpotFillOrder??onFillOrderDummy,
         args.onPerpPlaceOrder??onPerpPlaceOrderDummy,
-        args.onPerpFillOrder??onFillOrderDummy
+        args.onPerpFillOrder ?? onFillOrderDummy,
+        args.onKaminoChangePosition ?? onKaminoChangePositionDummy
     );
     const clientData = await args.engine.getClientData();
     for (const token of clientData.tokens.values()) {
@@ -509,6 +513,7 @@ export class ClientState {
     onSpotFillOrder: OnFillOrder;
     onPerpPlaceOrder: OnPerpPlaceOrder;
     onPerpFillOrder: OnFillOrder;
+    onKaminoChangePosition: OnKaminoChangePosition;
     constructor(
         instruments: Map<number, ClientInstrument>,
         tokens: Map<number, number>,
@@ -522,7 +527,8 @@ export class ClientState {
         onSpotPlaceOrder: OnSpotPlaceOrder,
         onSpotFillOrder: OnFillOrder,
         onPerpPlaceOrder: OnPerpPlaceOrder,
-        onPerpFillOrder: OnFillOrder
+        onPerpFillOrder: OnFillOrder,
+        onKaminoPositionChange: OnKaminoChangePosition
     ) {
         this.instruments = instruments;
         this.tokens = tokens;
@@ -1543,6 +1549,7 @@ export class ClientState {
                                     this.tokens.set(clientInstrument!.info.assetTokenId, assetToken + kaminoChangePositionReport.borrowDelta);
                                     this.tokens.set(clientInstrument!.info.crncyTokenId, crncyToken - kaminoChangePositionReport.collateralDelta);
                                 }
+                                this.onKaminoChangePosition(kaminoChangePositionReport);
                             }
                             break;
                         }
