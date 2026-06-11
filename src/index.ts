@@ -528,7 +528,7 @@ export class ClientState {
         onSpotFillOrder: OnFillOrder,
         onPerpPlaceOrder: OnPerpPlaceOrder,
         onPerpFillOrder: OnFillOrder,
-        onKaminoPositionChange: OnKaminoChangePosition
+        onKaminoChangePosition: OnKaminoChangePosition
     ) {
         this.instruments = instruments;
         this.tokens = tokens;
@@ -544,6 +544,7 @@ export class ClientState {
         this.onSpotFillOrder = onSpotFillOrder;
         this.onPerpPlaceOrder = onPerpPlaceOrder;
         this.onPerpFillOrder = onPerpFillOrder;
+        this.onKaminoChangePosition = onKaminoChangePosition;
     }
     async writeSpotStatistics() {
         for (const instr of this.instruments.entries()) {
