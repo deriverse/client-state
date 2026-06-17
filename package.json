@@ -41,7 +41,7 @@
   "author": "Deriverse",
   "license": "Apache-2.0",
   "dependencies": {
-    "@deriverse/kit": "1.0.67",
+    "@deriverse/kit": "1.0.68",
     "@solana/kit": "2.1.0"
   },
   "devDependencies": {
