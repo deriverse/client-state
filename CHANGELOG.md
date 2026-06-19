@@ -1,3 +1,8 @@
+## [v1.0.21] - 2026-06-19
+
+## Changed
+- Bumped @deriverse/kit dependency to 1.0.69
+
 ## [v1.0.20] - 2026-06-17
 
 ## Changed
