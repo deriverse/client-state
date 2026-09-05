@@ -1,3 +1,8 @@
+## [v1.0.25] - 2026-09-05
+
+## Changed
+- MoveSpotAvailFunds added
+
 ## [v1.0.24] - 2026-06-30
 
 ## Changed

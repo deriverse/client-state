@@ -1,6 +1,6 @@
 import {
     BuyMarketSeatReportModel, DepositReportModel, Engine, FeesDepositReportModel, FeesWithdrawReportModel, Instrument, KaminoChangePositionReportModel, LogMessage,
-    LogType, PerpChangeLeverageReportModel, PerpDepositReportModel, PerpFeesReportModel,
+    LogType, MoveSpotAvailFundsReportModel, PerpChangeLeverageReportModel, PerpDepositReportModel, PerpFeesReportModel,
     PerpFillOrderReportModel, PerpFundingReportModel, PerpMassCancelReportModel, PerpNewOrderReportModel,
     PerpOrderCancelReportModel, PerpOrderRevokeReportModel, PerpPlaceMassCancelReportModel,
     PerpPlaceOrderReportModel, PerpWithdrawReportModel, PlaceSwapOrderReportModel, SellMarketSeatReportModel, SpotFeesReportModel,
@@ -708,6 +708,17 @@ export class ClientState {
                                         `Bad Seq Number: gap ${withdrawReport.seqNo - this.seqNo - 1}`);
                                 }
                                 this.seqNo = withdrawReport.seqNo;
+                            }
+                            break;
+                        }
+                        case LogType.moveSpot: {
+                            const moveSpotReport = report as MoveSpotAvailFundsReportModel;
+                            if (moveSpotReport.clientId == engine.originalClientId) {
+                                if (this.seqNo != 0 && (this.seqNo + 1) != moveSpotReport.seqNo) {
+                                    this.onError(report,
+                                        `Bad Seq Number: gap ${moveSpotReport.seqNo - this.seqNo - 1}`);
+                                }
+                                this.seqNo = moveSpotReport.seqNo;
                             }
                             break;
                         }
