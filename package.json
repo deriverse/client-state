@@ -1,6 +1,6 @@
 {
   "name": "@deriverse/client-state",
-  "version": "1.0.25",
+  "version": "1.0.26",
   "description": "Client state management utilities for Deriverse SDK on Solana.",
   "type": "commonjs",
   "main": "dist/index.js",
@@ -41,7 +41,7 @@
   "author": "Deriverse",
   "license": "Apache-2.0",
   "dependencies": {
-    "@deriverse/kit": "1.0.72",
+    "@deriverse/kit": "1.0.76",
     "@solana/kit": "2.1.0"
   },
   "devDependencies": {
